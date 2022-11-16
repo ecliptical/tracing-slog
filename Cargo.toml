@@ -1,6 +1,6 @@
 [package]
 name = "tracing-slog"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Peter Nehrer <pnehrer@eclipticalsoftware.com>"]
 edition = "2021"
 repository = "https://github.com/ecliptical/tracing-slog"
@@ -21,11 +21,12 @@ default = ["std"]
 std = ["slog/std"]
 
 [dependencies]
-lazy_static = "1.3"
+once_cell = "1.16"
 slog = "2.7"
 tracing-core = "0.1"
 
 [dev-dependencies]
+log = "0.4"
 tracing = "0.1"
 tracing-subscriber = {version = "0.3", features = ["env-filter", "json"] }
-tracing-test = "0.1"
+tracing-test = "0.2"

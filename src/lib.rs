@@ -4,7 +4,7 @@
 //!
 //! Heavily inspired by [tracing-log](https://github.com/tokio-rs/tracing/tree/5fdbcbf61da27ec3e600678121d8c00d2b9b5cb1/tracing-log).
 
-use lazy_static::lazy_static;
+use once_cell::sync::Lazy;
 
 use tracing_core::{
     callsite, dispatcher, field, identify_callsite,
@@ -88,7 +88,7 @@ struct Fields {
 static FIELD_NAMES: &[&str] = &[
     "message",
     "slog.target",
-    "slog.module",
+    "slog.module_path",
     "slog.file",
     "slog.line",
     "slog.column",
@@ -99,7 +99,7 @@ impl Fields {
         let fieldset = cs.metadata().fields();
         let message = fieldset.field("message").unwrap();
         let target = fieldset.field("slog.target").unwrap();
-        let module = fieldset.field("slog.module").unwrap();
+        let module = fieldset.field("slog.module_path").unwrap();
         let file = fieldset.field("slog.file").unwrap();
         let line = fieldset.field("slog.line").unwrap();
         let column = fieldset.field("slog.column").unwrap();
@@ -163,13 +163,11 @@ slog_cs!(
     ErrorCallsite
 );
 
-lazy_static! {
-    static ref TRACE_FIELDS: Fields = Fields::new(&TRACE_CS);
-    static ref DEBUG_FIELDS: Fields = Fields::new(&DEBUG_CS);
-    static ref INFO_FIELDS: Fields = Fields::new(&INFO_CS);
-    static ref WARN_FIELDS: Fields = Fields::new(&WARN_CS);
-    static ref ERROR_FIELDS: Fields = Fields::new(&ERROR_CS);
-}
+static TRACE_FIELDS: Lazy<Fields> = Lazy::new(|| Fields::new(&TRACE_CS));
+static DEBUG_FIELDS: Lazy<Fields> = Lazy::new(|| Fields::new(&DEBUG_CS));
+static INFO_FIELDS: Lazy<Fields> = Lazy::new(|| Fields::new(&INFO_CS));
+static WARN_FIELDS: Lazy<Fields> = Lazy::new(|| Fields::new(&WARN_CS));
+static ERROR_FIELDS: Lazy<Fields> = Lazy::new(|| Fields::new(&ERROR_CS));
 
 fn sloglevel_to_cs(
     level: slog::Level,

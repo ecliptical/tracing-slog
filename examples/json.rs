@@ -14,13 +14,17 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     TracingSubscriber::builder()
         .with_env_filter(TracingEnvFilter::from_default_env())
+        .with_file(true)
+        .with_line_number(true)
         .json()
         .init();
 
-    info!(file = file!(), line = line!(), "json tracing example");
+    info!("json tracing example");
 
     slog::info!(slogger, "logged using slog"; "arg1" => "val1");
     nested::log_something(&slogger);
+
+    log::info!("logged using plain log");
 
     Ok(())
 }
