@@ -1,0 +1,99 @@
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+name: Rust CI
+
+jobs:
+  lint:
+    name: Check formatting and run clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the source code
+        uses: actions/checkout@v3
+      - name: Cache tools
+        uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.65.0
+          components: rustfmt, clippy
+          default: true
+      - name: Check formatting
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+      - name: Run clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all -- -D warnings
+
+  coverage:
+    name: Run tests with coverage
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the source code
+        uses: actions/checkout@v3
+      - name: Cache tools
+        uses: actions/cache@v3
+        with:
+          key: ${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.65.0
+          default: true
+      - name: Build the binary
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+        env:
+          CARGO_INCREMENTAL: '0'
+          RUSTC_BOOTSTRAP: '1'
+          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+      - name: Run unit tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+        env:
+          CARGO_INCREMENTAL: '0'
+          RUSTC_BOOTSTRAP: '1'
+          RUSTFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+          RUSTDOCFLAGS: '-Zprofile -Ccodegen-units=1 -Cinline-threshold=0 -Clink-dead-code -Coverflow-checks=off -Cpanic=abort -Zpanic_abort_tests'
+      - name: Install grcov
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: grcov
+      - name: Run grcov
+        run: grcov . -s . --binary-path ./target/debug/ --excl-start '^mod\s+test(s)?\s*\{$' -t covdir --branch --ignore-not-existing --keep-only 'src/**' -o ./target/covdir.json
+      - name: Generate coverage report
+        uses: ecliptical/covdir-report-action@v0.1
+        with:
+          file: ./target/covdir.json
+          summary: 'true'
+          out: ./target/coverage.md
+      - name: Add coverage comment to the pull request
+        uses: marocchino/sticky-pull-request-comment@v2
+        if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' 
+        with:
+          hide_and_recreate: true
+          hide_classify: "OUTDATED"
+          path: ./target/coverage.md
