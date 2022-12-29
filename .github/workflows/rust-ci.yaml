@@ -25,7 +25,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.65.0
+          toolchain: 1.56.1
           components: rustfmt, clippy
           default: true
       - name: Check formatting
@@ -57,7 +57,7 @@ jobs:
       - name: Install Rust
         uses: actions-rs/toolchain@v1
         with:
-          toolchain: 1.65.0
+          toolchain: 1.56.1
           default: true
       - name: Build the binary
         uses: actions-rs/cargo@v1
@@ -83,7 +83,7 @@ jobs:
           command: install
           args: grcov
       - name: Run grcov
-        run: grcov . -s . --binary-path ./target/debug/ --excl-start '^mod\s+test(s)?\s*\{$' -t covdir --branch --ignore-not-existing --keep-only 'src/**' -o ./target/covdir.json
+        run: grcov . -s . --binary-path ./target/debug/ --excl-start '^mod\s+tests\s*\{$' -t covdir --branch --ignore-not-existing --keep-only 'src/**' -o ./target/covdir.json
       - name: Generate coverage report
         uses: ecliptical/covdir-report-action@v0.1
         with:
