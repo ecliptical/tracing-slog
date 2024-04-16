@@ -21,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("json tracing example");
 
-    slog::info!(slogger, "logged using slog"; "arg1" => "val1");
+    slog::info!(slogger, "logged using slog"; "arg1" => "val1", "arg2"=>"val2");
     nested::log_something(&slogger);
 
     log::info!("logged using plain log");

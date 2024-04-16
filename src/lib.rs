@@ -6,11 +6,34 @@
 
 use once_cell::sync::Lazy;
 
+use slog::KV;
 use tracing_core::{
     callsite, dispatcher, field, identify_callsite,
     metadata::{Kind, Level},
     subscriber, Event, Metadata,
 };
+
+/// An allocating serializer to use for serializing key-value pairs in a [`slog::Record`]
+#[derive(Default)]
+struct TracingKvSerializer {
+    storage: String,
+}
+
+impl TracingKvSerializer {
+    fn as_str(&self) -> &str {
+        self.storage
+            .get(..self.storage.len().saturating_sub(1))
+            .unwrap_or_default()
+    }
+}
+
+impl slog::Serializer for TracingKvSerializer {
+    fn emit_arguments(&mut self, key: slog::Key, val: &core::fmt::Arguments) -> slog::Result {
+        self.storage
+            .push_str(&format_args!("{key}={val},").to_string());
+        Ok(())
+    }
+}
 
 /// A [slog Drain](slog::Drain) that converts [records](slog::Record) into [tracing events](Event).
 ///
@@ -46,6 +69,9 @@ impl slog::Drain for TracingSlogDrain {
                 return;
             }
 
+            let mut field_serializer = TracingKvSerializer::default();
+            let _ = record.kv().serialize(record, &mut field_serializer);
+
             let (_, keys, meta) = sloglevel_to_cs(record.level());
 
             let target = get_target(record);
@@ -59,6 +85,7 @@ impl slog::Drain for TracingSlogDrain {
                     (&keys.file, Some(&record.file())),
                     (&keys.line, Some(&record.line())),
                     (&keys.column, Some(&record.column())),
+                    (&keys.fields, Some(&field_serializer.as_str())),
                 ]),
             ));
         });
@@ -83,6 +110,7 @@ struct Fields {
     file: field::Field,
     line: field::Field,
     column: field::Field,
+    fields: field::Field,
 }
 
 static FIELD_NAMES: &[&str] = &[
@@ -92,6 +120,7 @@ static FIELD_NAMES: &[&str] = &[
     "slog.file",
     "slog.line",
     "slog.column",
+    "slog.fields",
 ];
 
 impl Fields {
@@ -103,6 +132,7 @@ impl Fields {
         let file = fieldset.field("slog.file").unwrap();
         let line = fieldset.field("slog.line").unwrap();
         let column = fieldset.field("slog.column").unwrap();
+        let fields = fieldset.field("slog.fields").unwrap();
         Fields {
             message,
             target,
@@ -110,6 +140,7 @@ impl Fields {
             file,
             line,
             column,
+            fields,
         }
     }
 }
@@ -225,6 +256,57 @@ mod tests {
 
         info!(root, "slog test"; "arg1" => "val1");
         assert!(logs_contain("slog test"));
+    }
+
+    #[test]
+    #[traced_test]
+    fn key_value_pairs() {
+        let drain = TracingSlogDrain;
+        let root = Logger::root(drain, o!());
+
+        info!(root, "slog test"; "arg1"=>"val1", "arg2"=>"val2");
+        assert!(logs_contain("slog test"));
+        assert!(
+            logs_contain("arg1=val1"),
+            "first kv pair should be included"
+        );
+        assert!(
+            logs_contain("arg2=val2"),
+            "second kv pair should be included"
+        );
+        assert!(
+            logs_contain("arg2=val2,arg1=val1"),
+            "comma-separated kv pairs should be included"
+        );
+        assert!(
+            !logs_contain("arg1=val1,arg1=val1,"),
+            "trailing comma should not be included"
+        );
+    }
+
+    #[test]
+    #[traced_test]
+    fn non_string_key_value_pairs() {
+        let drain = TracingSlogDrain;
+        let root = Logger::root(drain, o!());
+
+        info!(root, "slog test"; "log-key" => true);
+        assert!(
+            logs_contain("log-key=true"),
+            "first kv pair should be included"
+        );
+
+        #[allow(unused)]
+        #[derive(Debug)]
+        struct Wrapper(u8);
+
+        let w = Wrapper(100);
+
+        info!(root, "slog test"; "debug-struct" =>?w);
+        assert!(
+            logs_contain("debug-struct=Wrapper(100)"),
+            "Debug-formatted struct should be included"
+        );
     }
 
     mod nested_mod {
