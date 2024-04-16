@@ -6,6 +6,7 @@
 
 use once_cell::sync::Lazy;
 
+#[cfg(feature = "kv")]
 use slog::KV;
 use tracing_core::{
     callsite, dispatcher, field, identify_callsite,
@@ -13,12 +14,14 @@ use tracing_core::{
     subscriber, Event, Metadata,
 };
 
+#[cfg(feature = "kv")]
 /// An allocating serializer to use for serializing key-value pairs in a [`slog::Record`]
 #[derive(Default)]
 struct TracingKvSerializer {
     storage: String,
 }
 
+#[cfg(feature = "kv")]
 impl TracingKvSerializer {
     fn as_str(&self) -> &str {
         self.storage
@@ -27,6 +30,7 @@ impl TracingKvSerializer {
     }
 }
 
+#[cfg(feature = "kv")]
 impl slog::Serializer for TracingKvSerializer {
     fn emit_arguments(&mut self, key: slog::Key, val: &core::fmt::Arguments) -> slog::Result {
         self.storage
@@ -69,8 +73,12 @@ impl slog::Drain for TracingSlogDrain {
                 return;
             }
 
-            let mut field_serializer = TracingKvSerializer::default();
-            let _ = record.kv().serialize(record, &mut field_serializer);
+            #[cfg(feature = "kv")]
+            let field_serializer = {
+                let mut ser = TracingKvSerializer::default();
+                let _ = record.kv().serialize(record, &mut ser);
+                ser
+            };
 
             let (_, keys, meta) = sloglevel_to_cs(record.level());
 
@@ -85,6 +93,7 @@ impl slog::Drain for TracingSlogDrain {
                     (&keys.file, Some(&record.file())),
                     (&keys.line, Some(&record.line())),
                     (&keys.column, Some(&record.column())),
+                    #[cfg(feature = "kv")]
                     (&keys.fields, Some(&field_serializer.as_str())),
                 ]),
             ));
@@ -110,6 +119,7 @@ struct Fields {
     file: field::Field,
     line: field::Field,
     column: field::Field,
+    #[cfg(feature = "kv")]
     fields: field::Field,
 }
 
@@ -120,6 +130,7 @@ static FIELD_NAMES: &[&str] = &[
     "slog.file",
     "slog.line",
     "slog.column",
+    #[cfg(feature = "kv")]
     "slog.fields",
 ];
 
@@ -132,6 +143,7 @@ impl Fields {
         let file = fieldset.field("slog.file").unwrap();
         let line = fieldset.field("slog.line").unwrap();
         let column = fieldset.field("slog.column").unwrap();
+        #[cfg(feature = "kv")]
         let fields = fieldset.field("slog.fields").unwrap();
         Fields {
             message,
@@ -140,6 +152,7 @@ impl Fields {
             file,
             line,
             column,
+            #[cfg(feature = "kv")]
             fields,
         }
     }
@@ -258,6 +271,7 @@ mod tests {
         assert!(logs_contain("slog test"));
     }
 
+    #[cfg(feature = "kv")]
     #[test]
     #[traced_test]
     fn key_value_pairs() {
@@ -284,6 +298,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "kv")]
     #[test]
     #[traced_test]
     fn non_string_key_value_pairs() {

@@ -18,8 +18,10 @@ readme = "README.md"
 rust-version = "1.56"
 
 [features]
-default = ["std"]
+default = ["std", "kv"]
 std = ["slog/std"]
+# Enables serialization of slog key-value pairs to a constructed field, `slog.fields`
+kv = []
 
 [dependencies]
 once_cell = "1.16"
