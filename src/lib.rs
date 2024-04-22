@@ -23,18 +23,18 @@ struct TracingKvSerializer {
 
 #[cfg(feature = "kv")]
 impl TracingKvSerializer {
-    fn as_str(&self) -> &str {
+    /// Return the serialized fields as a string. If empty, returns None
+    fn as_str(&self) -> Option<&str> {
         self.storage
             .get(..self.storage.len().saturating_sub(1))
-            .unwrap_or_default()
+            .filter(|kv_serialization| !kv_serialization.is_empty())
     }
 }
 
 #[cfg(feature = "kv")]
 impl slog::Serializer for TracingKvSerializer {
     fn emit_arguments(&mut self, key: slog::Key, val: &core::fmt::Arguments) -> slog::Result {
-        self.storage
-            .push_str(&format_args!("{key}={val},").to_string());
+        self.storage.push_str(&format!("{key}={val},"));
         Ok(())
     }
 }
@@ -74,7 +74,7 @@ impl slog::Drain for TracingSlogDrain {
             }
 
             #[cfg(feature = "kv")]
-            let field_serializer = {
+            let kv_serializer = {
                 let mut ser = TracingKvSerializer::default();
                 let _ = record.kv().serialize(record, &mut ser);
                 ser
@@ -94,7 +94,13 @@ impl slog::Drain for TracingSlogDrain {
                     (&keys.line, Some(&record.line())),
                     (&keys.column, Some(&record.column())),
                     #[cfg(feature = "kv")]
-                    (&keys.fields, Some(&field_serializer.as_str())),
+                    (
+                        &keys.kv,
+                        kv_serializer
+                            .as_str()
+                            .as_ref()
+                            .map(|x| x as &dyn tracing_core::field::Value),
+                    ),
                 ]),
             ));
         });
@@ -120,7 +126,7 @@ struct Fields {
     line: field::Field,
     column: field::Field,
     #[cfg(feature = "kv")]
-    fields: field::Field,
+    kv: field::Field,
 }
 
 static FIELD_NAMES: &[&str] = &[
@@ -131,7 +137,7 @@ static FIELD_NAMES: &[&str] = &[
     "slog.line",
     "slog.column",
     #[cfg(feature = "kv")]
-    "slog.fields",
+    "slog.kv",
 ];
 
 impl Fields {
@@ -144,7 +150,7 @@ impl Fields {
         let line = fieldset.field("slog.line").unwrap();
         let column = fieldset.field("slog.column").unwrap();
         #[cfg(feature = "kv")]
-        let fields = fieldset.field("slog.fields").unwrap();
+        let kv = fieldset.field("slog.kv").unwrap();
         Fields {
             message,
             target,
@@ -153,7 +159,7 @@ impl Fields {
             line,
             column,
             #[cfg(feature = "kv")]
-            fields,
+            kv,
         }
     }
 }
@@ -321,6 +327,20 @@ mod tests {
         assert!(
             logs_contain("debug-struct=Wrapper(100)"),
             "Debug-formatted struct should be included"
+        );
+    }
+
+    #[cfg(feature = "kv")]
+    #[test]
+    #[traced_test]
+    fn log_without_kv_pair_doesnt_contain_kv_field() {
+        let drain = TracingSlogDrain;
+        let root = Logger::root(drain, o!());
+
+        info!(root, "slog test");
+        assert!(
+            !logs_contain("slog.kv"),
+            "log without key-value pair should not contain `slog.kv`"
         );
     }
 
