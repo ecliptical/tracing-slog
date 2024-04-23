@@ -20,6 +20,8 @@ rust-version = "1.56"
 [features]
 default = ["std"]
 std = ["slog/std"]
+# Enables serialization of slog key-value pairs to a constructed field, `slog.kv`
+kv = []
 
 [dependencies]
 once_cell = "1.16"
