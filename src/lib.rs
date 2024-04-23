@@ -15,7 +15,7 @@ use tracing_core::{
 };
 
 #[cfg(feature = "kv")]
-/// An allocating serializer to use for serializing key-value pairs in a [`slog::Record`]
+/// An allocating serializer to use for serializing key-value pairs in a [`slog::Record`].
 #[derive(Default)]
 struct TracingKvSerializer {
     storage: String,
