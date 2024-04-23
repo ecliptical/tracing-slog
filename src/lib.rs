@@ -23,7 +23,7 @@ struct TracingKvSerializer {
 
 #[cfg(feature = "kv")]
 impl TracingKvSerializer {
-    /// Return the serialized fields as a string. If empty, returns None
+    /// Returns the serialized fields as a string. If empty, returns `None`.
     fn as_str(&self) -> Option<&str> {
         self.storage
             .get(..self.storage.len().saturating_sub(1))
